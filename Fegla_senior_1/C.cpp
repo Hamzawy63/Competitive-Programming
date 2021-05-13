@@ -1,145 +1,86 @@
 #include <bits/stdc++.h>
 
 using namespace std;
-const int mxN = 250000 + 4;
-int a[mxN];
-int hs[mxN];
-const int BN = 160;
-bool debug = false;
 
-class Blk {
+template<class type>
+class Fenwick {
+    // zero based fenwick tree
+    int n;
+    vector<type> fen;
+    bool initialized; // to make sure the methods are used after calling init .
+
 public:
-    int st, end;
-
-    void sort() {
-        std::sort(hs + st, hs + end, [&](int i1, int i2) {
-            return a[i1] < a[i2];
-        });
-        if (debug) {
-            cerr << "Sorting the blocks starting at " << st << " and ending at " << end << endl;
-            for (int i = st; i < end; i += 1) {
-                cerr << a[hs[i]] << ' ';
-            }
-            cerr << endl;
-        }
+    Fenwick() {
+        initialized = false;
     }
 
-    int how_many_greater_than(int value) {
-        int lb = st, rb = end - 1;
-        int ans = -1;
-        while (lb <= rb) {
-            int mb = (lb + rb) / 2;
-            if (a[hs[mb]] > value) {
-                ans = mb;
-                rb = mb - 1;
-            } else {
-                lb = mb + 1;
-            }
-        }
-        if (ans == -1) return 0;
-        else return (end - ans);
+    void init(int n) {
+        initialized = true;
+        this->n = n;
+        fen.resize(n);
     }
 
-    int how_many_less_than(int value) {
-        int lb = st, rb = end - 1;
-        int ans = -1;
-        while (lb <= rb) {
-            int mb = (lb + rb) / 2;
-            if (a[hs[mb]] < value) {
-                ans = mb;
-                lb = mb + 1;
-            } else {
-                rb = mb - 1;
-            }
-        }
-        if (ans == -1) return 0;
-        else return (ans - st + 1);
+    void init(vector<type> &fen) {
+        initialized = true;
+        this->fen = fen;
+        n = (int) fen.size();
     }
 
-    int local_inversions(int idx, int value) {
-        assert(a[idx] == value);
-        assert(idx >= st && idx < end);
-        int ans = 0;
-        for (int i = st; i < end; i++) {
-            if (i < idx && a[i] > a[idx]) {
-                ans += 1;
-            } else if (i > idx && a[i] < a[idx]) {
-                ans += 1;
-            }
+    type query(int L) {
+        assert(initialized);
+        type ans = 0;
+        while (L >= 0) {
+            ans += fen[L];
+            L = (L & (L + 1)) - 1;
         }
         return ans;
-
     }
 
-    void update(int idx, int new_val) {
-        a[idx] = new_val;
-        // clever sort
-        int hashed_idx = -1;
-        for (int i = st; i < end; i++) {
-            if (hs[i] == idx) {
-                hashed_idx = i;
-                break;
-            }
-        }
-        assert(hashed_idx != -1);
-        int ptr = hashed_idx;
-        while (ptr > st && (a[hs[ptr]] < a[hs[ptr - 1]])) {
-            swap(hs[ptr], hs[ptr - 1]);
-            ptr -= 1;
-        }
-        ptr = hashed_idx;
-        while ((ptr + 1 < end) && (a[hs[ptr]] > a[hs[ptr + 1]])) {
-            swap(hs[ptr], hs[ptr + 1]);
-            ptr += 1;
+    type range_query(int L, int R) {
+        assert(initialized);
+        assert(R < n);
+        assert(L >= 0);
+        type ans = query(R);
+        if (L) ans -= query(L - 1);
+
+
+        return ans;
+    }
+
+    type suffix_query(int L) {
+        if (L >= n) return 0;
+
+        assert(L >= 0);
+
+        type ans = query(n - 1);
+        if (L) ans -= query(L - 1);
+        return ans;
+    }
+
+    void update(int idx, type delta) {
+        assert(initialized);
+        assert(idx >= 0);
+        assert(idx < n);
+        while (idx < n) {
+            fen[idx] += delta;
+            idx = (idx | (idx + 1));
         }
     }
 };
 
-const int N = 50000 + 1;
-int fen[N];
 
-int query(int idx) {
-    int ans = 0;
-    while (idx >= 0) {
-        ans += fen[idx];
-        idx = (idx & (idx + 1)) - 1;
-    }
-    return ans;
-}
+struct Data {
+    int query_idx;
+    int parity;
+    int K;
+};
 
-int suffix_query(int L) {
-    int ans = 0;
-    if (L >= N) return 0;
-    ans = query(N - 1);
-    if (L > 0)
-        ans -= query(L - 1);
-    return ans;
-}
-
-void update(int L, int delta) {
-    while (L < N) {
-        fen[L] += delta;
-        L = L | (L + 1);
-    }
-}
-
-long long int count_inversion(int n) {
-    long long int ans = 0;
-    for (int i = 0; i < n; i++) {
-        ans += suffix_query(a[i] + 1);
-        update(a[i], 1);
-    }
-    return ans;
-}
-
-int get_blocks(int i) {
-    return i / BN;
-}
-
+const int mxN = 30000;
+vector<Data> g[mxN + 3];
+vector<int> all;
 
 int main() {
 #ifdef  _SHIT
-    debug = true;
     freopen("../in", "r", stdin);
     freopen("../out", "w", stdout);
 #endif
@@ -149,62 +90,49 @@ int main() {
 
     int n;
     cin >> n;
-    long long int inversions = 0;
+    vector<int> a(n);
     for (int i = 0; i < n; i++) {
         cin >> a[i];
-        hs[i] = i;
+        all.push_back(a[i]);
     }
-    inversions = count_inversion(n);
     int q;
     cin >> q;
-
-    int number_of_blocks = (n + BN - 1) / (BN);
-    vector<Blk> blocks(number_of_blocks);
-    for (int i = 0; i < number_of_blocks; i++) {
-        blocks[i].st = BN * i;
-        blocks[i].end = min(n, (BN) * (i + 1));
+    vector<int> ans(q);
+    for (int qq = 0; qq < q; qq++) {
+        int L, R, k;
+        cin >> L >> R >> k;
+        L -= 1;
+        R -= 1;
+        all.push_back(k);
+        if (L > 0)g[L - 1].push_back({qq, -1, k});
+        g[R].push_back({qq, 1, k});
     }
-    for (int i = 0; i < number_of_blocks; i++) {
-        blocks[i].sort();
-    }
+    sort(all.begin(), all.end());
+    all.erase(unique(all.begin() , all.end()) , all.end()) ;
+    Fenwick<int> fen;
 
-    while (q--) {
-        int idx_to_edit, new_val;
-        cin >> idx_to_edit >> new_val;
-        long long int change = 0;
-        idx_to_edit -= 1;
-        int old_value = a[idx_to_edit];
-        int me = get_blocks(idx_to_edit);
-        for (int i = 0; i < number_of_blocks; i++) {
-            int subchage = 0;
-            if (i < me) {
-                subchage = blocks[i].how_many_greater_than(old_value);
-            } else if (i > me) {
-                subchage = blocks[i].how_many_less_than(old_value);
-            }
-            change += subchage;
+
+    fen.init((int) all.size() + 5);
+    auto hash = [&](int val) {
+        int idx = lower_bound(all.begin() , all.end() , val ) - all.begin() ;
+        return idx ;
+    };
+
+    for (int i = 0; i < n; i++) {
+        // add the value to the tree
+        fen.update(hash(a[i]), 1);
+        for (auto to : g[i]) {
+            int query_idx = to.query_idx;
+            int K = to.K;
+            int parity = to.parity;
+            int res = 0;
+            res = fen.suffix_query(hash(K + 1));
+            ans[query_idx] += res * parity;
         }
-        change += blocks[me].local_inversions(idx_to_edit, old_value);
-
-        inversions -= change;
-        blocks[me].update(idx_to_edit, new_val); // a[idx_to_edit ] = new_val ;
-        change = 0;
-        for (int i = 0; i < number_of_blocks; i++) {
-            int subchage = 0;
-            if (i < me) {
-                subchage = blocks[i].how_many_greater_than(new_val);
-            } else if (i > me) {
-                subchage = blocks[i].how_many_less_than(new_val);
-            }
-            change += subchage;
-        }
-        change += blocks[me].local_inversions(idx_to_edit, new_val);
-
-
-        inversions += change;
-        cout << inversions << '\n';
-
-
     }
+    for (int i = 0; i < q; i++) {
+        cout << ans[i] << '\n';
+    }
+//    cout << '\n' ;
     return 0;
 }
